@@ -181,6 +181,22 @@ function getFinalStatus(vtScore, cpScore) {
 
   return "🟢 Fully Safe";
 }
+function buildSignals(url, headers = {}) {
+  const domain = new URL(url).hostname;
+
+  return {
+    hasHTTPS: url.startsWith("https"),
+    isShortDomain: domain.length < 8,
+    isPopularDomain: [
+      "google.com",
+      "github.com",
+      "microsoft.com",
+      "wikipedia.org",
+      "openai.com"
+    ].includes(domain),
+    hasHSTS: headers.hsts || false
+  };
+}
 
 
 // ==============================

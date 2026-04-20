@@ -120,7 +120,7 @@ async function runPhishingCheck(url, tabId) {
     const cpRes = await fetch("https://api.checkphish.ai/v1/url", {
       method: "POST",
       headers: {
-        "Authorization": pol3lx6dtek9vesjf6l25hhbxkonm04lemnd43utnuwdwz7rk990tff80olx1wot,
+        "Authorization": CHECKPHISH_API_KEY,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ url })

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+
+  <title>\uD83D\uDD0D Tech Detector</title>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      width: 300px;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    .header {
+      padding: 12px;
+      text-align: center;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .container {
+      padding: 10px;
+    }
+
+    .section {
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 6px;
+      transition: background 0.2s;
+      cursor: default;
+    }
+
+    .item:hover {
+      background: #334155;
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: #2563eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: white;
+      font-weight: bold;
+    }
+
+    .text {
+      font-size: 13px;
+    }
+
+    .empty {
+      color: #64748b;
+      font-size: 12px;
+      padding: 4px;
+    }
+
+    .trusted {
+      text-align: center;
+      padding: 8px;
+      border-radius: 8px;
+      font-weight: bold;
+      background: #022c22;
+      color: #4ade80;
+      border: 1px solid #14532d;
+    }
+
+    .danger {
+      background: #450a0a;
+      color: #f87171;
+      border: 1px solid #7f1d1d;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <div class="header">🔍 Tech Detector</div>
+
+  <div class="container" id="results">
+    <!-- Dynamic content here -->
+  </div>
+
+  <script src="popup.js"></script>
+
+</body>
+</html>

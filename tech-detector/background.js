@@ -1,4 +1,5 @@
 let detectedData = new Map();
+const lastScan = new Map();
 
 // 🔑 API KEYS
 const VT_API_KEY = "d487da2f1d9b2f771cc7776b3eb66743ed1cca8fe919d5c4d6833d0ff35fd9ac";

@@ -81,7 +81,12 @@ chrome.webRequest.onHeadersReceived.addListener(
 
     // Run phishing scan only for real URLs
     if (details.url && details.url.startsWith("http")) {
-      runPhishingCheck(details.url, details.tabId);
+      const now = Date.now();
+
+if (!lastScan.has(details.tabId) || now - lastScan.get(details.tabId) > 15000) {
+  lastScan.set(details.tabId, now);
+  runPhishingCheck(details.url, details.tabId);
+}
     }
   },
   { urls: ["<all_urls>"] },

@@ -165,48 +165,7 @@ async function runPhishingCheck(url, tabId) {
 }
 
 
-// ==============================
-// 🧠 VIRUSTOTAL SCORING
-// ==============================
-function extractVTScore(data) {
-  const stats = data?.data?.attributes?.last_analysis_stats;
 
-  if (!stats) return 5;
-
-  return (stats.malicious || 0) * 10 +
-         (stats.suspicious || 0) * 3;
-}
-
-
-// ==============================
-// 🧠 CHECKPHISH SCORING
-// ==============================
-function extractCPScore(data) {
-
-  if (!data) return 5;
-
-  if (data.status === "phishing") return 50;
-  if (data.status === "suspicious") return 20;
-  if (data.status === "safe") return -10;
-
-  return 10;
-}
-
-
-// ==============================
-// 🎯 FINAL RANKING SYSTEM
-// ==============================
-function getFinalStatus(vtScore, cpScore) {
-
-  const score = vtScore + cpScore;
-
-  if (score >= 80) return "❌ Not Safe";
-  if (score >= 40) return "🟡 Moderate Safe";
-  if (score >= 10) return "⚪ Neutral";
-  if (score > 0) return "❓ Unrecognised";
-
-  return "🟢 Fully Safe";
-}
 function buildSignals(url, headers = {}) {
   const domain = new URL(url).hostname;
 

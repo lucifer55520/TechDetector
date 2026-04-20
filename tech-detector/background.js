@@ -1,4 +1,3 @@
-
 const api = typeof browser !== "undefined" ? browser : chrome;
 
 // ==============================
@@ -8,8 +7,8 @@ let detectedData = new Map();
 const lastScan = new Map();
 
 // 🔑 API KEYS
-const VT_API_KEY = "d487da2f1d9b2f771cc7776b3eb66743ed1cca8fe919d5c4d6833d0ff35fd9ac";
-const CHECKPHISH_API_KEY = "pol3lx6dtek9vesjf6l25hhbxkonm04lemnd43utnuwdwz7rk990tff80olx1wot";
+const VT_API_KEY = "YOUR_VIRUSTOTAL_KEY";
+const CHECKPHISH_API_KEY = "YOUR_CHECKPHISH_KEY";
 
 // ==============================
 // 📦 INIT TAB DATA
@@ -48,7 +47,6 @@ api.webRequest.onHeadersReceived.addListener(
     if (!details.responseHeaders || details.tabId < 0) return;
 
     const tabData = getTabData(details.tabId);
-    if (!tabData) return;
 
     let backend = [];
     let security = [];
@@ -93,7 +91,7 @@ api.webRequest.onHeadersReceived.addListener(
 
     detectedData.set(details.tabId, tabData);
 
-    // Rate limit scanning (IMPORTANT)
+    // Rate limit scanning
     const now = Date.now();
     if (
       details.url &&
@@ -109,13 +107,13 @@ api.webRequest.onHeadersReceived.addListener(
 );
 
 // ==============================
-// 🔐 PHISHING CHECK
+// 🔐 PHISHING CHECK ENGINE (NO AI)
 // ==============================
 async function runPhishingCheck(url, tabId) {
+
   let vtData = null;
   let cpData = null;
 
-  // -------- VirusTotal --------
   try {
     const vtRes = await fetch("https://www.virustotal.com/api/v3/urls", {
       method: "POST",
@@ -127,11 +125,8 @@ async function runPhishingCheck(url, tabId) {
     });
 
     vtData = await vtRes.json();
-  } catch (e) {
-    console.log("VT error:", e);
-  }
+  } catch {}
 
-  // -------- CheckPhish --------
   try {
     const cpRes = await fetch("https://api.checkphish.ai/v1/url", {
       method: "POST",
@@ -143,32 +138,26 @@ async function runPhishingCheck(url, tabId) {
     });
 
     cpData = await cpRes.json();
-  } catch (e) {
-    console.log("CP error:", e);
-  }
-
-  // ==============================
-  // 🧠 SIMPLE RULE ENGINE (NO AI)
-  // ==============================
+  } catch {}
 
   const vtStats = vtData?.data?.attributes?.last_analysis_stats;
   const cpStatus = cpData?.status;
 
   let score = 0;
 
-  // VirusTotal rules
+  // VirusTotal scoring
   if (vtStats) {
     score -= (vtStats.malicious || 0) * 50;
     score -= (vtStats.suspicious || 0) * 20;
     score += (vtStats.harmless || 0) * 5;
   }
 
-  // CheckPhish rules
+  // CheckPhish scoring
   if (cpStatus === "phishing") score -= 80;
   else if (cpStatus === "suspicious") score -= 40;
   else if (cpStatus === "safe") score += 20;
 
-  // Final classification
+  // Final decision
   let status = "";
 
   if (score <= -80) status = "❌ Not Safe";
@@ -183,22 +172,27 @@ async function runPhishingCheck(url, tabId) {
 }
 
 // ==============================
-// 📡 MESSAGE HANDLER
+// 📡 MESSAGE HANDLER (FIXED)
 // ==============================
 api.runtime.onMessage.addListener((req, sender, sendResponse) => {
+
   if (req.action === "getData") {
-    const tabId = sender?.tab?.id;
+    const tabId = req.tabId;   // ✅ FIXED
     sendResponse(getTabData(tabId));
   }
 
   if (req.action === "frontendDetected") {
-    const tabData = getTabData(sender?.tab?.id);
-    if (!tabData) return;
+    const tabId = sender?.tab?.id;
+    if (!tabId) return;
+
+    const tabData = getTabData(tabId);
 
     tabData.frontend.push(...(req.data.frontend || []));
     tabData.analytics.push(...(req.data.analytics || []));
     tabData.cms.push(...(req.data.cms || []));
 
-    detectedData.set(sender.tab.id, tabData);
+    detectedData.set(tabId, tabData);
   }
+
+  return true; // ✅ REQUIRED FOR FIREFOX + ASYNC SAFETY
 });

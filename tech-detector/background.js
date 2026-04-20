@@ -15,7 +15,16 @@ const CHECKPHISH_API_KEY = "pol3lx6dtek9vesjf6l25hhbxkonm04lemnd43utnuwdwz7rk990
 // 📦 INIT TAB DATA
 // ==============================
 function getTabData(tabId) {
-  if (!tabId) return null;
+  if (!tabId) {
+    return {
+      frontend: [],
+      backend: [],
+      security: [],
+      analytics: [],
+      cms: [],
+      trusted: "Scanning..."
+    };
+  }
 
   if (!detectedData.has(tabId)) {
     detectedData.set(tabId, {

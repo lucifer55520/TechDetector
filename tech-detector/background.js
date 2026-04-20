@@ -167,11 +167,17 @@ async function runPhishingCheck(url, tabId) {
 
 
 function buildSignals(url, headers = {}) {
-  const domain = new URL(url).hostname;
+  let domain = "";
+
+  try {
+    domain = new URL(url).hostname;
+  } catch {
+    domain = "";
+  }
 
   return {
     hasHTTPS: url.startsWith("https"),
-    isShortDomain: domain.length < 8,
+    isShortDomain: domain.length > 8 ? false : true,
     isPopularDomain: [
       "google.com",
       "github.com",

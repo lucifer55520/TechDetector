@@ -1,9 +1,8 @@
 let detectedData = new Map();
 
 // 🔑 API KEYS
-const VT_API_KEY = "YOUR_VIRUSTOTAL_KEY";
-const CHECKPHISH_API_KEY = "YOUR_CHECKPHISH_KEY";
-
+const VT_API_KEY = "d487da2f1d9b2f771cc7776b3eb66743ed1cca8fe919d5c4d6833d0ff35fd9ac";
+const CHECKPHISH_API_KEY = "pol3lx6dtek9vesjf6l25hhbxkonm04lemnd43utnuwdwz7rk990tff80olx1wot";
 
 // ==============================
 // 📦 CREATE / GET TAB DATA

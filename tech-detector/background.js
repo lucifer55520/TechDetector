@@ -94,10 +94,9 @@ chrome.webRequest.onHeadersReceived.addListener(
 // ==============================
 async function runPhishingCheck(url, tabId) {
 
-  let vtScore = 0;
-  let cpScore = 0;
+  let vtData = null;
+  let cpData = null;
 
-  // -------- VirusTotal --------
   try {
     const vtRes = await fetch("https://www.virustotal.com/api/v3/urls", {
       method: "POST",
@@ -108,12 +107,9 @@ async function runPhishingCheck(url, tabId) {
       body: "url=" + encodeURIComponent(url)
     });
 
-    const vtData = await vtRes.json();
-    vtScore = extractVTScore(vtData);
-
+    vtData = await vtRes.json();
   } catch {}
 
-  // -------- CheckPhish --------
   try {
     const cpRes = await fetch("https://api.checkphish.ai/v1/url", {
       method: "POST",
@@ -124,70 +120,49 @@ async function runPhishingCheck(url, tabId) {
       body: JSON.stringify({ url })
     });
 
-    const cpData = await cpRes.json();
-    cpScore = extractCPScore(cpData);
-
+    cpData = await cpRes.json();
   } catch {}
 
-  // Final result
+  // 🧠 AI ENGINE
   const vtStats = vtData?.data?.attributes?.last_analysis_stats;
-const cpStatus = cpData?.status;
+  const cpStatus = cpData?.status;
 
-// 🌐 Build AI signals
-const signals = buildSignals(url, {
-  hsts: true
-});
+  const signals = buildSignals(url, { hsts: true });
 
-// 🧠 AI-style scoring engine
-let score = 0;
+  let score = 0;
 
-// VirusTotal intelligence
-if (vtStats) {
-  score += (vtStats.malicious || 0) * -12;
-  score += (vtStats.suspicious || 0) * -6;
-  score += (vtStats.harmless || 0) * 2;
-} else {
-  score -= 8;
+  if (vtStats) {
+    score += (vtStats.malicious || 0) * -12;
+    score += (vtStats.suspicious || 0) * -6;
+    score += (vtStats.harmless || 0) * 2;
+  } else {
+    score -= 8;
+  }
+
+  if (cpStatus === "phishing") score -= 60;
+  else if (cpStatus === "suspicious") score -= 25;
+  else if (cpStatus === "safe") score += 15;
+  else score -= 5;
+
+  if (signals.hasHTTPS) score += 5;
+  if (signals.hasHSTS) score += 5;
+  if (signals.isPopularDomain) score += 10;
+  if (signals.isShortDomain) score -= 3;
+
+  const confidence = Math.min(100, Math.abs(score));
+
+  let status = "";
+
+  if (score <= -60) status = `❌ Not Safe (AI ${confidence}%)`;
+  else if (score <= -20) status = `⚠️ Suspicious (AI ${confidence}%)`;
+  else if (score <= 10) status = `❓ Unrecognised (AI ${confidence}%)`;
+  else if (score <= 40) status = `🟡 Likely Safe (AI ${confidence}%)`;
+  else status = `🟢 Fully Safe (AI ${confidence}%)`;
+
+  const tabData = getTabData(tabId);
+  tabData.trusted = status;
+  detectedData.set(tabId, tabData);
 }
-
-// CheckPhish intelligence
-if (cpStatus === "phishing") score -= 60;
-else if (cpStatus === "suspicious") score -= 25;
-else if (cpStatus === "safe") score += 15;
-else score -= 5;
-
-// AI behavioral signals
-if (signals.hasHTTPS) score += 5;
-if (signals.hasHSTS) score += 5;
-if (signals.isPopularDomain) score += 10;
-if (signals.isShortDomain) score -= 3;
-
-// Confidence engine
-const confidence = Math.min(100, Math.abs(score));
-
-// 🧠 AI classification output
-let status = "";
-
-if (score <= -60) {
-  status = `❌ Not Safe (AI ${confidence}%)`;
-}
-else if (score <= -20) {
-  status = `⚠️ Suspicious (AI ${confidence}%)`;
-}
-else if (score <= 10) {
-  status = `❓ Unrecognised (AI ${confidence}%)`;
-}
-else if (score <= 40) {
-  status = `🟡 Likely Safe (AI ${confidence}%)`;
-}
-else {
-  status = `🟢 Fully Safe (AI ${confidence}%)`;
-}
-
-// Save result
-const tabData = getTabData(tabId);
-tabData.trusted = status;
-detectedData.set(tabId, tabData);
 
 
 // ==============================

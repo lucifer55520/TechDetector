@@ -130,13 +130,64 @@ async function runPhishingCheck(url, tabId) {
   } catch {}
 
   // Final result
-  const status = getFinalStatus(vtScore, cpScore);
+  const vtStats = vtData?.data?.attributes?.last_analysis_stats;
+const cpStatus = cpData?.status;
 
-  const tabData = getTabData(tabId);
-  tabData.trusted = status;
+// 🌐 Build AI signals
+const signals = buildSignals(url, {
+  hsts: true
+});
 
-  detectedData.set(tabId, tabData);
+// 🧠 AI-style scoring engine
+let score = 0;
+
+// VirusTotal intelligence
+if (vtStats) {
+  score += (vtStats.malicious || 0) * -12;
+  score += (vtStats.suspicious || 0) * -6;
+  score += (vtStats.harmless || 0) * 2;
+} else {
+  score -= 8;
 }
+
+// CheckPhish intelligence
+if (cpStatus === "phishing") score -= 60;
+else if (cpStatus === "suspicious") score -= 25;
+else if (cpStatus === "safe") score += 15;
+else score -= 5;
+
+// AI behavioral signals
+if (signals.hasHTTPS) score += 5;
+if (signals.hasHSTS) score += 5;
+if (signals.isPopularDomain) score += 10;
+if (signals.isShortDomain) score -= 3;
+
+// Confidence engine
+const confidence = Math.min(100, Math.abs(score));
+
+// 🧠 AI classification output
+let status = "";
+
+if (score <= -60) {
+  status = `❌ Not Safe (AI ${confidence}%)`;
+}
+else if (score <= -20) {
+  status = `⚠️ Suspicious (AI ${confidence}%)`;
+}
+else if (score <= 10) {
+  status = `❓ Unrecognised (AI ${confidence}%)`;
+}
+else if (score <= 40) {
+  status = `🟡 Likely Safe (AI ${confidence}%)`;
+}
+else {
+  status = `🟢 Fully Safe (AI ${confidence}%)`;
+}
+
+// Save result
+const tabData = getTabData(tabId);
+tabData.trusted = status;
+detectedData.set(tabId, tabData);
 
 
 // ==============================

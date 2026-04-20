@@ -1,8 +1,5 @@
 const api = typeof browser !== "undefined" ? browser : chrome;
 
-// ==============================
-// 📦 STORAGE
-// ==============================
 let detectedData = new Map();
 const lastScan = new Map();
 
@@ -11,20 +8,9 @@ const VT_API_KEY = "YOUR_VIRUSTOTAL_KEY";
 const CHECKPHISH_API_KEY = "YOUR_CHECKPHISH_KEY";
 
 // ==============================
-// 📦 INIT TAB DATA
+// TAB STORAGE
 // ==============================
 function getTabData(tabId) {
-  if (!tabId) {
-    return {
-      frontend: [],
-      backend: [],
-      security: [],
-      analytics: [],
-      cms: [],
-      trusted: "Scanning..."
-    };
-  }
-
   if (!detectedData.has(tabId)) {
     detectedData.set(tabId, {
       frontend: [],
@@ -35,16 +21,15 @@ function getTabData(tabId) {
       trusted: "Scanning..."
     });
   }
-
   return detectedData.get(tabId);
 }
 
 // ==============================
-// 🌐 HEADER ANALYSIS
+// HEADER ANALYSIS
 // ==============================
 api.webRequest.onHeadersReceived.addListener(
   (details) => {
-    if (!details.responseHeaders || details.tabId < 0) return;
+    if (!details.tabId || details.tabId < 0) return;
 
     const tabData = getTabData(details.tabId);
 
@@ -53,32 +38,25 @@ api.webRequest.onHeadersReceived.addListener(
     let analytics = [];
     let cms = [];
 
-    details.responseHeaders.forEach((h) => {
+    (details.responseHeaders || []).forEach((h) => {
       const name = h.name.toLowerCase();
       const value = (h.value || "").toLowerCase();
 
-      // Backend
       if (name === "x-powered-by") {
         if (value.includes("php")) backend.push("PHP");
         if (value.includes("express")) backend.push("Node.js");
-        if (value.includes("asp.net")) backend.push("ASP.NET");
       }
 
       if (name === "server") {
-        if (value.includes("apache")) backend.push("Apache");
         if (value.includes("nginx")) backend.push("Nginx");
-        if (value.includes("iis")) backend.push("IIS");
+        if (value.includes("apache")) backend.push("Apache");
       }
 
-      // Security
       if (value.includes("cloudflare")) security.push("Cloudflare");
       if (name === "strict-transport-security") security.push("HSTS");
-      if (name === "content-security-policy") security.push("CSP");
 
-      // Analytics
       if (value.includes("google-analytics")) analytics.push("Google Analytics");
 
-      // CMS
       if (value.includes("wordpress")) cms.push("WordPress");
       if (value.includes("shopify")) cms.push("Shopify");
     });
@@ -91,11 +69,10 @@ api.webRequest.onHeadersReceived.addListener(
 
     detectedData.set(details.tabId, tabData);
 
-    // Rate limit scanning
+    // rate limit
     const now = Date.now();
     if (
-      details.url &&
-      details.url.startsWith("http") &&
+      details.url?.startsWith("http") &&
       (!lastScan.get(details.tabId) || now - lastScan.get(details.tabId) > 15000)
     ) {
       lastScan.set(details.tabId, now);
@@ -107,7 +84,7 @@ api.webRequest.onHeadersReceived.addListener(
 );
 
 // ==============================
-// 🔐 PHISHING CHECK ENGINE (NO AI)
+// PHISHING CHECK
 // ==============================
 async function runPhishingCheck(url, tabId) {
 
@@ -145,25 +122,21 @@ async function runPhishingCheck(url, tabId) {
 
   let score = 0;
 
-  // VirusTotal scoring
   if (vtStats) {
     score -= (vtStats.malicious || 0) * 50;
     score -= (vtStats.suspicious || 0) * 20;
     score += (vtStats.harmless || 0) * 5;
   }
 
-  // CheckPhish scoring
   if (cpStatus === "phishing") score -= 80;
   else if (cpStatus === "suspicious") score -= 40;
   else if (cpStatus === "safe") score += 20;
 
-  // Final decision
-  let status = "";
-
-  if (score <= -80) status = "❌ Not Safe";
-  else if (score <= -30) status = "⚠️ Suspicious";
-  else if (score <= 10) status = "❓ Unrecognized";
-  else status = "🟢 Fully Safe";
+  let status =
+    score <= -80 ? "❌ Not Safe" :
+    score <= -30 ? "⚠️ Suspicious" :
+    score <= 10 ? "❓ Unrecognized" :
+    "🟢 Fully Safe";
 
   const tabData = getTabData(tabId);
   tabData.trusted = status;
@@ -172,12 +145,12 @@ async function runPhishingCheck(url, tabId) {
 }
 
 // ==============================
-// 📡 MESSAGE HANDLER (FIXED)
+// MESSAGE HANDLER (IMPORTANT FIX)
 // ==============================
 api.runtime.onMessage.addListener((req, sender, sendResponse) => {
 
   if (req.action === "getData") {
-    const tabId = req.tabId;   // ✅ FIXED
+    const tabId = req.tabId;
     sendResponse(getTabData(tabId));
   }
 
@@ -194,5 +167,5 @@ api.runtime.onMessage.addListener((req, sender, sendResponse) => {
     detectedData.set(tabId, tabData);
   }
 
-  return true; // ✅ REQUIRED FOR FIREFOX + ASYNC SAFETY
+  return true;
 });

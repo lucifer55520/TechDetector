@@ -1,115 +1,42 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
 
-  const resultsDiv = document.getElementById("results");
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  // 🔄 Loading state (IMPROVED #1)
-  resultsDiv.innerHTML =
-    "<div class='item'>🔄 Scanning website...</div>";
+  if (!tab?.id) {
+    document.getElementById("results").innerHTML = "No tab found";
+    return;
+  }
 
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-
-    if (!tabs || tabs.length === 0) {
-      resultsDiv.innerHTML =
-        "<div class='item'>❌ No active tab found</div>";
-      return;
-    }
-
-    const tab = tabs[0];
-
-    if (!tab?.id || !tab?.url) {
-      resultsDiv.innerHTML =
-        "<div class='item'>❌ Cannot access this page</div>";
-      return;
-    }
-
-    if (
-      tab.url.startsWith("chrome://") ||
-      tab.url.startsWith("edge://") ||
-      tab.url.startsWith("about:")
-    ) {
-      resultsDiv.innerHTML =
-        "<div class='item'>⚠️ Cannot scan this page</div>";
-      return;
-    }
-
-    // 📡 Get data from background.js
+  function loadData() {
     chrome.runtime.sendMessage(
-      { action: "getData" },
+      { action: "getData", tabId: tab.id },   // ✅ IMPORTANT FIX
       function (data) {
 
         if (!data) {
-          resultsDiv.innerHTML =
-            "<div class='item'>⚠️ Scanning... please refresh page</div>";
+          document.getElementById("results").innerHTML =
+            "<div>Scanning...</div>";
           return;
         }
 
         renderUI(data);
       }
     );
+  }
 
-  });
+  loadData();
 
+  // 🔁 auto refresh every 2 seconds (fix stuck UI)
+  setInterval(loadData, 2000);
 });
 
 
-// ==============================
-// 🎨 UI RENDER FUNCTION
-// ==============================
 function renderUI(data) {
 
-  let html = "";
-
-  function section(title, items) {
-
-    html += `<div class="section">
-      <div class="section-title">${title}</div>`;
-
-    if (!items || items.length === 0) {
-      html += `<div class="empty">None detected</div>`;
-    } else {
-      items.forEach(i => {
-        html += `<div class="item">${i}</div>`;
-      });
-    }
-
-    html += `</div>`;
-  }
-
-  // 📊 Sections (IMPROVED #2 safe access)
-  section("Frontend", data?.frontend || []);
-  section("Backend", data?.backend || []);
-  section("Security", data?.security || []);
-  section("Analytics", data?.analytics || []);
-  section("CMS", data?.cms || []);
-
-  // 🔐 Trusted section
-  html += `
-    <div class="section">
-      <div class="section-title">Trusted</div>
-      <div class="trusted" id="trusted">
-        ${data?.trusted || "Scanning..."}
-      </div>
-    </div>
+  document.getElementById("results").innerHTML = `
+    <div>Frontend: ${data.frontend.join(", ") || "None"}</div>
+    <div>Backend: ${data.backend.join(", ") || "None"}</div>
+    <div>Security: ${data.security.join(", ") || "None"}</div>
+    <div>CMS: ${data.cms.join(", ") || "None"}</div>
+    <div><b>Status:</b> ${data.trusted}</div>
   `;
-
-  document.getElementById("results").innerHTML = html;
-
-  // 🎨 Color system (IMPROVED #3 safe handling)
-  const el = document.getElementById("trusted");
-
-  if (!el) return;
-
-  const status = data?.trusted || "";
-
-  if (status.includes("Not Safe")) {
-    el.style.color = "red";
-  } else if (status.includes("Moderate")) {
-    el.style.color = "orange";
-  } else if (status.includes("Fully Safe")) {
-    el.style.color = "green";
-  } else if (status.includes("Neutral")) {
-    el.style.color = "gray";
-  } else {
-    el.style.color = "#94a3b8"; // soft neutral
-  }
 }

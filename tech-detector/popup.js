@@ -1,8 +1,12 @@
+// Unified API handle
+const api = typeof browser !== "undefined" ? browser : chrome;
+
 document.addEventListener("DOMContentLoaded", async () => {
   const resultsEl = document.getElementById("results");
 
   try {
-    const tabs = await getActiveTab();
+    // browser.tabs.query returns a Promise in Firefox
+    const tabs = await api.tabs.query({ active: true, currentWindow: true });
 
     if (!tabs || tabs.length === 0) {
       resultsEl.innerHTML = errorMsg("No active tab found");
@@ -14,50 +18,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Block browser system pages
     if (
       !tab.url ||
-      tab.url.startsWith("chrome://") ||
-      tab.url.startsWith("edge://") ||
       tab.url.startsWith("about:") ||
       tab.url.startsWith("moz-extension://") ||
-      tab.url.startsWith("chrome-extension://")
+      tab.url.startsWith("chrome://") ||
+      tab.url.startsWith("chrome-extension://") ||
+      tab.url.startsWith("edge://")
     ) {
       resultsEl.innerHTML = errorMsg("⚠️ Cannot scan this page");
       return;
     }
 
     // Request data from background.js
-    chrome.runtime.sendMessage({ action: "getData", tabId: tab.id }, (data) => {
-      if (chrome.runtime.lastError) {
-        resultsEl.innerHTML = errorMsg("Extension error — try reloading");
-        return;
-      }
+    // Firefox: browser.runtime.sendMessage returns a Promise
+    const data = await api.runtime.sendMessage({ action: "getData", tabId: tab.id });
 
-      if (!data) {
-        resultsEl.innerHTML = `
-          <div class="empty-state">
-            <div class="spinner"></div>
-            <p>No data yet — please refresh the page</p>
-          </div>`;
-        return;
-      }
+    if (!data) {
+      resultsEl.innerHTML = `
+        <div class="empty-state">
+          <div class="spinner"></div>
+          <p>No data yet — please refresh the page</p>
+        </div>`;
+      return;
+    }
 
-      renderUI(data);
-    });
+    renderUI(data);
 
   } catch (err) {
-    console.error(err);
-    resultsEl.innerHTML = errorMsg("Unexpected error loading popup");
+    console.error("[TechDetector popup]", err);
+    resultsEl.innerHTML = errorMsg("Unexpected error — try refreshing");
   }
 });
 
 // ============================================================
 // HELPERS
 // ============================================================
-function getActiveTab() {
-  return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, resolve);
-  });
-}
-
 function errorMsg(msg) {
   return `<div class="item error-item">❌ ${msg}</div>`;
 }
@@ -68,12 +62,15 @@ function errorMsg(msg) {
 function renderUI(data) {
   const el = document.getElementById("results");
 
-  // ── Section builder ──────────────────────────────────────
+  // ── Section builder ────────────────────────────────────
   function section(title, emoji, items) {
     if (!items || items.length === 0) return "";
 
     const itemsHTML = items.map(i =>
-      `<div class="item"><span class="item-dot"></span><span class="text">${i}</span></div>`
+      `<div class="item">
+         <span class="item-dot"></span>
+         <span class="text">${escapeHTML(i)}</span>
+       </div>`
     ).join("");
 
     return `
@@ -83,28 +80,25 @@ function renderUI(data) {
       </div>`;
   }
 
-  // ── Phishing banner ───────────────────────────────────────
-  const trusted  = data.trusted || "Scanning...";
-  const status   = trusted.toLowerCase();
+  // ── Phishing banner ────────────────────────────────────
+  const trusted = data.trusted || "Scanning...";
+  const status  = trusted.toLowerCase();
 
   let bannerClass = "banner-unknown";
   let bannerIcon  = "🔍";
 
   if (status.includes("not safe")) {
-    bannerClass = "banner-danger";
-    bannerIcon  = "🚨";
+    bannerClass = "banner-danger";   bannerIcon = "🚨";
   } else if (status.includes("suspicious")) {
-    bannerClass = "banner-warn";
-    bannerIcon  = "⚠️";
+    bannerClass = "banner-warn";     bannerIcon = "⚠️";
   } else if (status.includes("fully safe")) {
-    bannerClass = "banner-safe";
-    bannerIcon  = "✅";
+    bannerClass = "banner-safe";     bannerIcon = "✅";
   } else if (status.includes("likely safe")) {
-    bannerClass = "banner-likely";
-    bannerIcon  = "🟡";
+    bannerClass = "banner-likely";   bannerIcon = "🟡";
+  } else if (status.includes("unrecognized")) {
+    bannerClass = "banner-unknown";  bannerIcon = "❓";
   } else if (status.includes("checking") || status.includes("scanning")) {
-    bannerClass = "banner-scanning";
-    bannerIcon  = "⏳";
+    bannerClass = "banner-scanning"; bannerIcon = "⏳";
   }
 
   const phishingBanner = `
@@ -112,11 +106,11 @@ function renderUI(data) {
       <div class="section-title">🛡️ Phishing Status</div>
       <div class="trusted ${bannerClass}">
         <span class="trust-icon">${bannerIcon}</span>
-        <span class="trust-text">${trusted}</span>
+        <span class="trust-text">${escapeHTML(trusted)}</span>
       </div>
     </div>`;
 
-  // ── Build full HTML ───────────────────────────────────────
+  // ── Tech sections ──────────────────────────────────────
   const sectionsHTML = [
     section("Frontend",  "🖥️",  data.frontend),
     section("Backend",   "⚙️",  data.backend),
@@ -127,13 +121,21 @@ function renderUI(data) {
     section("Hosting",   "☁️",  data.hosting),
   ].filter(Boolean).join("");
 
-  const noTech = !sectionsHTML;
-
-  el.innerHTML = phishingBanner + (noTech
-    ? `<div class="empty" style="text-align:center;padding:16px 8px">
-         <div style="font-size:28px;margin-bottom:6px">🔎</div>
-         <div style="color:#64748b;font-size:12px">No technologies detected yet.<br>Try refreshing the page.</div>
-       </div>`
-    : sectionsHTML
+  el.innerHTML = phishingBanner + (sectionsHTML || `
+    <div class="empty-state" style="padding:16px 8px">
+      <div style="font-size:28px;margin-bottom:6px">🔎</div>
+      <div style="color:#64748b;font-size:12px;text-align:center">
+        No technologies detected yet.<br>Try refreshing the page.
+      </div>
+    </div>`
   );
+}
+
+// Basic XSS guard for rendered strings
+function escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

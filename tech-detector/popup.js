@@ -5,113 +5,135 @@ document.addEventListener("DOMContentLoaded", async () => {
     const tabs = await getActiveTab();
 
     if (!tabs || tabs.length === 0) {
-      resultsEl.innerHTML = "<div class='item'>❌ No active tab found</div>";
+      resultsEl.innerHTML = errorMsg("No active tab found");
       return;
     }
 
     const tab = tabs[0];
-    const tabId = tab.id;
 
-    if (!tabId) {
-      resultsEl.innerHTML = "<div class='item'>❌ Cannot access tab</div>";
-      return;
-    }
-
-    // 🚫 block system pages
+    // Block browser system pages
     if (
-      tab.url?.startsWith("chrome://") ||
-      tab.url?.startsWith("edge://") ||
-      tab.url?.startsWith("about:")
+      !tab.url ||
+      tab.url.startsWith("chrome://") ||
+      tab.url.startsWith("edge://") ||
+      tab.url.startsWith("about:") ||
+      tab.url.startsWith("moz-extension://") ||
+      tab.url.startsWith("chrome-extension://")
     ) {
-      resultsEl.innerHTML = "<div class='item'>⚠️ Cannot scan this page</div>";
+      resultsEl.innerHTML = errorMsg("⚠️ Cannot scan this page");
       return;
     }
 
-    // 📡 request data from background
-    chrome.runtime.sendMessage(
-      { action: "getData", tabId },
-      (data) => {
-        if (!data) {
-          resultsEl.innerHTML =
-            "<div class='item'>⚠️ No data yet. Refresh page.</div>";
-          return;
-        }
-
-        renderUI(data);
+    // Request data from background.js
+    chrome.runtime.sendMessage({ action: "getData", tabId: tab.id }, (data) => {
+      if (chrome.runtime.lastError) {
+        resultsEl.innerHTML = errorMsg("Extension error — try reloading");
+        return;
       }
-    );
+
+      if (!data) {
+        resultsEl.innerHTML = `
+          <div class="empty-state">
+            <div class="spinner"></div>
+            <p>No data yet — please refresh the page</p>
+          </div>`;
+        return;
+      }
+
+      renderUI(data);
+    });
 
   } catch (err) {
     console.error(err);
-    document.getElementById("results").innerHTML =
-      "<div class='item'>❌ Error loading popup</div>";
+    resultsEl.innerHTML = errorMsg("Unexpected error loading popup");
   }
 });
 
-
-// ==============================
-// GET ACTIVE TAB (PROMISE WRAPPER)
-// ==============================
+// ============================================================
+// HELPERS
+// ============================================================
 function getActiveTab() {
   return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, resolve);
   });
 }
 
+function errorMsg(msg) {
+  return `<div class="item error-item">❌ ${msg}</div>`;
+}
 
-// ==============================
-// UI RENDER ENGINE
-// ==============================
+// ============================================================
+// RENDER
+// ============================================================
 function renderUI(data) {
   const el = document.getElementById("results");
 
-  let html = "";
+  // ── Section builder ──────────────────────────────────────
+  function section(title, emoji, items) {
+    if (!items || items.length === 0) return "";
 
-  function section(title, items) {
-    html += `<div class="section">
-      <div class="section-title">${title}</div>`;
+    const itemsHTML = items.map(i =>
+      `<div class="item"><span class="item-dot"></span><span class="text">${i}</span></div>`
+    ).join("");
 
-    if (!items || items.length === 0) {
-      html += `<div class="empty">None detected</div>`;
-    } else {
-      items.forEach((i) => {
-        html += `<div class="item">${i}</div>`;
-      });
-    }
-
-    html += `</div>`;
+    return `
+      <div class="section">
+        <div class="section-title">${emoji} ${title}</div>
+        <div class="card">${itemsHTML}</div>
+      </div>`;
   }
 
-  section("Frontend", data.frontend);
-  section("Backend", data.backend);
-  section("Security", data.security);
-  section("Analytics", data.analytics);
-  section("CMS", data.cms);
+  // ── Phishing banner ───────────────────────────────────────
+  const trusted  = data.trusted || "Scanning...";
+  const status   = trusted.toLowerCase();
 
-  html += `
-    <div class="section">
-      <div class="section-title">Trusted Status</div>
-      <div id="trusted" class="trusted">${data.trusted || "Scanning..."}</div>
-    </div>
-  `;
-
-  el.innerHTML = html;
-
-  // 🎨 COLOR SYSTEM
-  const t = document.getElementById("trusted");
-  if (!t) return;
-
-  const status = (data.trusted || "").toLowerCase();
+  let bannerClass = "banner-unknown";
+  let bannerIcon  = "🔍";
 
   if (status.includes("not safe")) {
-    t.style.color = "red";
+    bannerClass = "banner-danger";
+    bannerIcon  = "🚨";
   } else if (status.includes("suspicious")) {
-    t.style.color = "orange";
-  } else if (status.includes("likely safe")) {
-    t.style.color = "#ffb300";
+    bannerClass = "banner-warn";
+    bannerIcon  = "⚠️";
   } else if (status.includes("fully safe")) {
-    t.style.color = "green";
-  } else {
-    t.style.color = "gray";
+    bannerClass = "banner-safe";
+    bannerIcon  = "✅";
+  } else if (status.includes("likely safe")) {
+    bannerClass = "banner-likely";
+    bannerIcon  = "🟡";
+  } else if (status.includes("checking") || status.includes("scanning")) {
+    bannerClass = "banner-scanning";
+    bannerIcon  = "⏳";
   }
+
+  const phishingBanner = `
+    <div class="section">
+      <div class="section-title">🛡️ Phishing Status</div>
+      <div class="trusted ${bannerClass}">
+        <span class="trust-icon">${bannerIcon}</span>
+        <span class="trust-text">${trusted}</span>
+      </div>
+    </div>`;
+
+  // ── Build full HTML ───────────────────────────────────────
+  const sectionsHTML = [
+    section("Frontend",  "🖥️",  data.frontend),
+    section("Backend",   "⚙️",  data.backend),
+    section("CMS",       "📝",  data.cms),
+    section("Libraries", "📦",  data.libraries),
+    section("Analytics", "📊",  data.analytics),
+    section("Security",  "🔒",  data.security),
+    section("Hosting",   "☁️",  data.hosting),
+  ].filter(Boolean).join("");
+
+  const noTech = !sectionsHTML;
+
+  el.innerHTML = phishingBanner + (noTech
+    ? `<div class="empty" style="text-align:center;padding:16px 8px">
+         <div style="font-size:28px;margin-bottom:6px">🔎</div>
+         <div style="color:#64748b;font-size:12px">No technologies detected yet.<br>Try refreshing the page.</div>
+       </div>`
+    : sectionsHTML
+  );
 }

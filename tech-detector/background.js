@@ -1,3 +1,15 @@
+// Unified API â€” works in both Firefox (browser.*) and Chrome (chrome.*)
+const api = typeof browser !== "undefined" ? browser : chrome;
+
+// ðŸ”‘ YOUR API KEYS
+// VirusTotal  â†’ free key at: https://www.virustotal.com/gui/my-apikey
+// CheckPhish  â†’ free key at: https://checkphish.ai
+const VT_API_KEY         = "YOUR_VIRUSTOTAL_KEY";   // leave "" to skip
+const CHECKPHISH_API_KEY = "YOUR_CHECKPHISH_KEY";   // leave "" to skip
+
+// ============================================================
+// TAB DATA STORE
+// ============================================================
 const tabStore = new Map();  // tabId â†’ data object
 const lastScan = new Map();  // tabId â†’ timestamp (rate-limit)
 

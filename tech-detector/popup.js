@@ -1,4 +1,3 @@
-// Unified API handle
 const api = typeof browser !== "undefined" ? browser : chrome;
 
 document.addEventListener("DOMContentLoaded", async () => {
